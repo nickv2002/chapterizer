@@ -7,7 +7,7 @@ Automatically add AI-generated chapters to videos using Docker, yt-dlp, and Asse
 Chapterize is a Docker-based CLI tool that:
 
 1. **Downloads** videos from YouTube, Nebula, and other platforms using [yt-dlp](https://github.com/yt-dlp/yt-dlp)
-2. **Transcribes** audio and detects chapter points using [AssemblyAI's AI API](https://www.assemblyai.com/)
+2. **Transcribes** audio and detects chapter points using [AssemblyAI's AI API](https://www.assemblyai.com/docs/speech-understanding/auto-chapters)
 3. **Embeds** the chapters into your video file with no re-encoding (preserves original quality)
 
 The output video will have chapters that work in most video players (VLC, Kodi, Overcast, etc.).
