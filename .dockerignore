@@ -1,0 +1,36 @@
+# Keys and transcripts
+*.txt
+
+# Output directory
+output/
+
+# Git
+.git/
+.gitignore
+
+# Downloaded videos
+*.mp4
+*.mkv
+*.webm
+*.mp3
+*.m4a
+
+# Generated metadata
+FFMETADATA*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.env
+*.egg-info/
+
+# Documentation
+README.md
+
+# macOS
+.DS_Store

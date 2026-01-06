@@ -1,0 +1,31 @@
+# Keys and transcripts (but keep example files)
+api-key.txt
+*cookies.txt
+*transcript-id.txt
+
+# Output directory
+output/*
+
+# Downloaded media
+*.mp4
+*.mkv
+*.webm
+*.mp3
+*.m4a
+
+# Generated metadata
+FFMETADATA*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.env
+*.egg-info/
+
+# macOS
+.DS_Store
