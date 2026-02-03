@@ -58,23 +58,23 @@ def download_video(url, cookies_file, output_dir=".", audio_only=False):
 def extract_chapters_from_yt_dlp_json(video_url, output_dir="."):
     """Extract chapters from yt-dlp JSON metadata without downloading video"""
     print("📋 Extracting chapter metadata from YouTube...")
-    
+
     # Use yt-dlp to get JSON metadata
     cmd = ["yt-dlp", "--dump-json", video_url]
     result = subprocess.run(cmd, capture_output=True, text=True)
-    
+
     if result.returncode != 0:
         print(f"⚠️  Could not extract metadata from URL: {result.stderr}")
         return None
-    
+
     try:
         data = json.loads(result.stdout)
-        chapters = data.get('chapters', [])
-        
+        chapters = data.get("chapters", [])
+
         if not chapters:
             print("⚠️  No chapters found in yt-dlp metadata")
             return None
-        
+
         print(f"✅ Found {len(chapters)} chapters in metadata")
         return chapters
     except json.JSONDecodeError:
@@ -85,43 +85,43 @@ def extract_chapters_from_yt_dlp_json(video_url, output_dir="."):
 def extract_chapters_from_ffprobe(video_file):
     """Extract chapters from video file using ffprobe"""
     print("📋 Extracting chapters from video file using ffprobe...")
-    
+
     cmd = [
         "ffprobe",
-        "-v", "quiet",
-        "-print_format", "json",
+        "-v",
+        "quiet",
+        "-print_format",
+        "json",
         "-show_chapters",
-        video_file
+        video_file,
     ]
-    
+
     result = subprocess.run(cmd, capture_output=True, text=True)
-    
+
     if result.returncode != 0 or not result.stdout:
         print("⚠️  Could not extract chapters using ffprobe")
         return None
-    
+
     try:
         data = json.loads(result.stdout)
-        chapters_raw = data.get('chapters', [])
-        
+        chapters_raw = data.get("chapters", [])
+
         if not chapters_raw:
             print("⚠️  No chapters found in video file")
             return None
-        
+
         # Convert ffprobe format to yt-dlp format for consistency
         chapters = []
         for ch in chapters_raw:
-            start_time = float(ch.get('start_time', 0))
-            end_time = float(ch.get('end_time', 0))
-            tags = ch.get('tags', {})
-            title = tags.get('title', 'Chapter')
-            
-            chapters.append({
-                'start_time': start_time,
-                'end_time': end_time,
-                'title': title
-            })
-        
+            start_time = float(ch.get("start_time", 0))
+            end_time = float(ch.get("end_time", 0))
+            tags = ch.get("tags", {})
+            title = tags.get("title", "Chapter")
+
+            chapters.append(
+                {"start_time": start_time, "end_time": end_time, "title": title}
+            )
+
         print(f"✅ Found {len(chapters)} chapters in video file")
         return chapters
     except (json.JSONDecodeError, KeyError, ValueError):
@@ -132,25 +132,25 @@ def extract_chapters_from_ffprobe(video_file):
 def chapters_to_ffmetadata(chapters, output_dir="."):
     """Convert chapters to FFMETADATA format and write to file"""
     metadata_file = os.path.join(output_dir, "FFMETADATA")
-    
+
     print(f"💾 Writing chapter metadata to {metadata_file}...")
-    
+
     with open(metadata_file, "w") as f:
         f.write(";FFMETADATA1\n")
-        
+
         for chapter in chapters:
             # Convert seconds to milliseconds
-            start_ms = int(chapter.get('start_time', 0) * 1000)
-            end_ms = int(chapter.get('end_time', 0) * 1000)
-            title = chapter.get('title', 'Chapter')
-            
+            start_ms = int(chapter.get("start_time", 0) * 1000)
+            end_ms = int(chapter.get("end_time", 0) * 1000)
+            title = chapter.get("title", "Chapter")
+
             f.write("[CHAPTER]\n")
             f.write("TIMEBASE=1/1000\n")
             f.write(f"START={start_ms}\n")
             f.write(f"END={end_ms}\n")
             f.write(f"title={title}\n")
             f.write("\n")
-    
+
     print(f"   ✓ Created {metadata_file}\n")
     return metadata_file
 
@@ -158,21 +158,21 @@ def chapters_to_ffmetadata(chapters, output_dir="."):
 def extract_chapters_from_source(video_url=None, video_file=None, output_dir="."):
     """Extract chapters from yt-dlp JSON or ffprobe, with fallback"""
     chapters = None
-    
+
     # Try yt-dlp JSON first if URL is provided
     if video_url:
         chapters = extract_chapters_from_yt_dlp_json(video_url, output_dir)
-    
+
     # Fallback to ffprobe if yt-dlp didn't work and we have a video file
     if not chapters and video_file:
         chapters = extract_chapters_from_ffprobe(video_file)
-    
+
     # If still no chapters, warn and return None
     if not chapters:
         print("⚠️  WARNING: Could not extract any chapters from the source")
         print("   The output file will not have chapters")
         return None
-    
+
     # Convert to FFMETADATA format
     metadata_file = chapters_to_ffmetadata(chapters, output_dir)
     return metadata_file
@@ -394,8 +394,9 @@ Examples:
         "--audio-only", action="store_true", help="Download only audio, not video"
     )
     parser.add_argument(
-        "--skip-ai-chapters", action="store_true",
-        help="Skip AssemblyAI transcription and use chapters from video source (YouTube description/sponsorblock) instead"
+        "--skip-ai-chapters",
+        action="store_true",
+        help="Skip AssemblyAI transcription and use chapters from video source (YouTube description/sponsorblock) instead",
     )
 
     args = parser.parse_args()
@@ -443,9 +444,7 @@ Examples:
     if args.skip_ai_chapters:
         # Use chapters from video source (YouTube description/sponsorblock)
         metadata_file = extract_chapters_from_source(
-            video_url=args.url,
-            video_file=video_file,
-            output_dir=args.output_dir
+            video_url=args.url, video_file=video_file, output_dir=args.output_dir
         )
     else:
         # Use AssemblyAI for transcription and chapter generation
