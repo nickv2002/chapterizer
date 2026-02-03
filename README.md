@@ -137,6 +137,27 @@ docker run --rm -v "$PWD:/app" chapterize \
   --input my-video.mp4
 ```
 
+### Use chapters from video source (no AI transcription)
+
+For YouTube videos with chapters in the description or SponsorBlock data, skip AssemblyAI transcription:
+
+```bash
+docker run --rm -v "$PWD:/app" chapterize \
+  --url "https://youtube.com/watch?v=..." \
+  --skip-ai-chapters
+```
+
+This is much faster since it doesn't need to transcribe or use the AssemblyAI API.
+
+Combine with `--audio-only` to extract audio with chapters:
+
+```bash
+docker run --rm -v "$PWD:/app" chapterize \
+  --url "https://youtube.com/watch?v=..." \
+  --skip-ai-chapters \
+  --audio-only
+```
+
 ### Customize output file name
 
 By default, the tool adds " - with chapters" to the filename:
@@ -156,6 +177,7 @@ docker run --rm -v "$PWD:/app" chapterize \
 --output FILE         Output video file (default: adds ' - with chapters' to filename)
 --output-dir DIR      Output directory for processed files (default: output)
 --audio-only          Download only audio, not video (faster & smaller bandwidth)
+--skip-ai-chapters    Skip AssemblyAI transcription and use chapters from video source instead
 --api-key KEY         AssemblyAI API key (optional, auto-detected from api-key.txt or env var)
 --work-dir DIR        Working directory (default: /app)
 ```

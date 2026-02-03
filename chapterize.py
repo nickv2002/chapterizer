@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -52,6 +53,129 @@ def download_video(url, cookies_file, output_dir=".", audio_only=False):
 
     print("❌ Could not determine downloaded filename")
     sys.exit(1)
+
+
+def extract_chapters_from_yt_dlp_json(video_url, output_dir="."):
+    """Extract chapters from yt-dlp JSON metadata without downloading video"""
+    print("📋 Extracting chapter metadata from YouTube...")
+    
+    # Use yt-dlp to get JSON metadata
+    cmd = ["yt-dlp", "--dump-json", video_url]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        print(f"⚠️  Could not extract metadata from URL: {result.stderr}")
+        return None
+    
+    try:
+        data = json.loads(result.stdout)
+        chapters = data.get('chapters', [])
+        
+        if not chapters:
+            print("⚠️  No chapters found in yt-dlp metadata")
+            return None
+        
+        print(f"✅ Found {len(chapters)} chapters in metadata")
+        return chapters
+    except json.JSONDecodeError:
+        print("⚠️  Could not parse yt-dlp JSON output")
+        return None
+
+
+def extract_chapters_from_ffprobe(video_file):
+    """Extract chapters from video file using ffprobe"""
+    print("📋 Extracting chapters from video file using ffprobe...")
+    
+    cmd = [
+        "ffprobe",
+        "-v", "quiet",
+        "-print_format", "json",
+        "-show_chapters",
+        video_file
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    
+    if result.returncode != 0 or not result.stdout:
+        print("⚠️  Could not extract chapters using ffprobe")
+        return None
+    
+    try:
+        data = json.loads(result.stdout)
+        chapters_raw = data.get('chapters', [])
+        
+        if not chapters_raw:
+            print("⚠️  No chapters found in video file")
+            return None
+        
+        # Convert ffprobe format to yt-dlp format for consistency
+        chapters = []
+        for ch in chapters_raw:
+            start_time = float(ch.get('start_time', 0))
+            end_time = float(ch.get('end_time', 0))
+            tags = ch.get('tags', {})
+            title = tags.get('title', 'Chapter')
+            
+            chapters.append({
+                'start_time': start_time,
+                'end_time': end_time,
+                'title': title
+            })
+        
+        print(f"✅ Found {len(chapters)} chapters in video file")
+        return chapters
+    except (json.JSONDecodeError, KeyError, ValueError):
+        print("⚠️  Could not parse ffprobe output")
+        return None
+
+
+def chapters_to_ffmetadata(chapters, output_dir="."):
+    """Convert chapters to FFMETADATA format and write to file"""
+    metadata_file = os.path.join(output_dir, "FFMETADATA")
+    
+    print(f"💾 Writing chapter metadata to {metadata_file}...")
+    
+    with open(metadata_file, "w") as f:
+        f.write(";FFMETADATA1\n")
+        
+        for chapter in chapters:
+            # Convert seconds to milliseconds
+            start_ms = int(chapter.get('start_time', 0) * 1000)
+            end_ms = int(chapter.get('end_time', 0) * 1000)
+            title = chapter.get('title', 'Chapter')
+            
+            f.write("[CHAPTER]\n")
+            f.write("TIMEBASE=1/1000\n")
+            f.write(f"START={start_ms}\n")
+            f.write(f"END={end_ms}\n")
+            f.write(f"title={title}\n")
+            f.write("\n")
+    
+    print(f"   ✓ Created {metadata_file}\n")
+    return metadata_file
+
+
+def extract_chapters_from_source(video_url=None, video_file=None, output_dir="."):
+    """Extract chapters from yt-dlp JSON or ffprobe, with fallback"""
+    chapters = None
+    
+    # Try yt-dlp JSON first if URL is provided
+    if video_url:
+        chapters = extract_chapters_from_yt_dlp_json(video_url, output_dir)
+    
+    # Fallback to ffprobe if yt-dlp didn't work and we have a video file
+    if not chapters and video_file:
+        chapters = extract_chapters_from_ffprobe(video_file)
+    
+    # If still no chapters, warn and return None
+    if not chapters:
+        print("⚠️  WARNING: Could not extract any chapters from the source")
+        print("   The output file will not have chapters")
+        return None
+    
+    # Convert to FFMETADATA format
+    metadata_file = chapters_to_ffmetadata(chapters, output_dir)
+    return metadata_file
 
 
 def extract_audio(video_file, output_dir="."):
@@ -269,25 +393,32 @@ Examples:
     parser.add_argument(
         "--audio-only", action="store_true", help="Download only audio, not video"
     )
+    parser.add_argument(
+        "--skip-ai-chapters", action="store_true",
+        help="Skip AssemblyAI transcription and use chapters from video source (YouTube description/sponsorblock) instead"
+    )
 
     args = parser.parse_args()
 
     # Get API key from multiple sources (priority: arg > env > file)
+    # Only required if not skipping AI chapters
     api_key = args.api_key
-    if not api_key:
-        api_key = os.environ.get("ASSEMBLYAI_API_KEY")
-    if not api_key:
-        api_key_file = os.path.join(args.work_dir, "api-key.txt")
-        if os.path.exists(api_key_file):
-            with open(api_key_file, "r") as f:
-                api_key = f.read().strip()
-    if not api_key:
-        parser.error(
-            "API key not found. Provide via --api-key, ASSEMBLYAI_API_KEY env var, or api-key.txt file"
-        )
+    if not args.skip_ai_chapters:
+        if not api_key:
+            api_key = os.environ.get("ASSEMBLYAI_API_KEY")
+        if not api_key:
+            api_key_file = os.path.join(args.work_dir, "api-key.txt")
+            if os.path.exists(api_key_file):
+                with open(api_key_file, "r") as f:
+                    api_key = f.read().strip()
+        if not api_key:
+            parser.error(
+                "API key not found. Provide via --api-key, ASSEMBLYAI_API_KEY env var, or api-key.txt file"
+            )
 
-    # Set API key for AssemblyAI
-    assemblyai.settings.api_key = api_key
+    # Set API key for AssemblyAI (only if not skipping AI chapters)
+    if not args.skip_ai_chapters:
+        assemblyai.settings.api_key = api_key
 
     if not args.url and not args.input:
         parser.error("Either --url or --input must be specified")
@@ -308,15 +439,29 @@ Examples:
             print(f"❌ Error: Input file not found: {video_file}")
             sys.exit(1)
 
-    # Step 2: Transcribe and generate chapters
-    metadata_file = transcribe_and_generate_chapters(
-        video_file, api_key, args.output_dir
-    )
+    # Step 2: Extract and generate chapters
+    if args.skip_ai_chapters:
+        # Use chapters from video source (YouTube description/sponsorblock)
+        metadata_file = extract_chapters_from_source(
+            video_url=args.url,
+            video_file=video_file,
+            output_dir=args.output_dir
+        )
+    else:
+        # Use AssemblyAI for transcription and chapter generation
+        metadata_file = transcribe_and_generate_chapters(
+            video_file, api_key, args.output_dir
+        )
 
-    # Step 3: Add chapters to video
-    output_video = add_chapters_to_video(
-        video_file, metadata_file, args.output, args.output_dir
-    )
+    # Step 3: Add chapters to video (only if metadata_file exists)
+    if metadata_file:
+        output_video = add_chapters_to_video(
+            video_file, metadata_file, args.output, args.output_dir
+        )
+    else:
+        print("⚠️  Skipping chapter embedding (no metadata available)")
+        # Still copy the file to output if needed, but without chapters
+        output_video = video_file
 
     print("🎉 All done!\n")
 
